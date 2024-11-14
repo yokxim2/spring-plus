@@ -1,6 +1,9 @@
 package org.example.expert.domain.todo.service;
 
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.example.expert.client.WeatherClient;
 import org.example.expert.domain.common.dto.AuthUser;
 import org.example.expert.domain.common.exception.InvalidRequestException;
@@ -11,73 +14,112 @@ import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
 import org.example.expert.domain.user.dto.response.UserResponse;
 import org.example.expert.domain.user.entity.User;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TodoService {
 
-    private final TodoRepository todoRepository;
-    private final WeatherClient weatherClient;
+	private final TodoRepository todoRepository;
+	private final WeatherClient weatherClient;
 
-    @Transactional
-    public TodoSaveResponse saveTodo(AuthUser authUser, TodoSaveRequest todoSaveRequest) {
-        User user = User.fromAuthUser(authUser);
+	@PersistenceContext
+	private EntityManager entityManager;
 
-        String weather = weatherClient.getTodayWeather();
+	@Transactional
+	public TodoSaveResponse saveTodo(AuthUser authUser, TodoSaveRequest todoSaveRequest) {
+		User user = User.fromAuthUser(authUser);
 
-        Todo newTodo = new Todo(
-                todoSaveRequest.getTitle(),
-                todoSaveRequest.getContents(),
-                weather,
-                user
-        );
-        Todo savedTodo = todoRepository.save(newTodo);
+		String weather = weatherClient.getTodayWeather();
 
-        return new TodoSaveResponse(
-                savedTodo.getId(),
-                savedTodo.getTitle(),
-                savedTodo.getContents(),
-                weather,
-                new UserResponse(user.getId(), user.getEmail())
-        );
-    }
+		Todo newTodo = new Todo(
+			todoSaveRequest.getTitle(),
+			todoSaveRequest.getContents(),
+			weather,
+			user
+		);
+		Todo savedTodo = todoRepository.save(newTodo);
 
-    public Page<TodoResponse> getTodos(int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
+		return new TodoSaveResponse(
+			savedTodo.getId(),
+			savedTodo.getTitle(),
+			savedTodo.getContents(),
+			weather,
+			new UserResponse(user.getId(), user.getEmail())
+		);
+	}
 
-        Page<Todo> todos = todoRepository.findAllByOrderByModifiedAtDesc(pageable);
+	public List<TodoResponse> getTodos(int page, int size, String weather, LocalDateTime startDate,
+		LocalDateTime endDate) {
+		Pageable pageable = PageRequest.of(page - 1, size);
 
-        return todos.map(todo -> new TodoResponse(
-                todo.getId(),
-                todo.getTitle(),
-                todo.getContents(),
-                todo.getWeather(),
-                new UserResponse(todo.getUser().getId(), todo.getUser().getEmail()),
-                todo.getCreatedAt(),
-                todo.getModifiedAt()
-        ));
-    }
+		StringBuilder jpql = new StringBuilder("SELECT t FROM Todo t WHERE 1=1");
 
-    public TodoResponse getTodo(long todoId) {
-        Todo todo = todoRepository.findByIdWithUser(todoId)
-                .orElseThrow(() -> new InvalidRequestException("Todo not found"));
+		if (startDate != null) {
+			jpql.append(" AND t.modifiedAt >= :startDate");
+		}
 
-        User user = todo.getUser();
+		if (endDate != null) {
+			jpql.append(" AND t.modifiedAt <= :endDate");
+		}
 
-        return new TodoResponse(
-                todo.getId(),
-                todo.getTitle(),
-                todo.getContents(),
-                todo.getWeather(),
-                new UserResponse(user.getId(), user.getEmail()),
-                todo.getCreatedAt(),
-                todo.getModifiedAt()
-        );
-    }
+		if (weather != null && !weather.isBlank()) {
+			jpql.append(" AND t.weather = :weather");
+		}
+
+		TypedQuery<Todo> query = entityManager.createQuery(jpql.toString(), Todo.class);
+
+		if (startDate != null) {
+			query.setParameter("startDate", startDate);
+		}
+		if (endDate != null) {
+			query.setParameter("endDate", endDate);
+		}
+		if (weather != null && !weather.isBlank()) {
+			query.setParameter("weather", weather);
+		}
+
+		query.setFirstResult((int)pageable.getOffset());
+		query.setMaxResults(pageable.getPageSize());
+
+		List<Todo> todos = query.getResultList();
+
+		return todos.stream()
+			.map(todo -> new TodoResponse(
+				todo.getId(),
+				todo.getTitle(),
+				todo.getContents(),
+				todo.getWeather(),
+				new UserResponse(todo.getUser().getId(), todo.getUser().getEmail()),
+				todo.getCreatedAt(),
+				todo.getModifiedAt()
+			))
+			.collect(Collectors.toList());
+	}
+
+	public TodoResponse getTodo(long todoId) {
+		Todo todo = todoRepository.findByIdWithUser(todoId)
+			.orElseThrow(() -> new InvalidRequestException("Todo not found"));
+
+		User user = todo.getUser();
+
+		return new TodoResponse(
+			todo.getId(),
+			todo.getTitle(),
+			todo.getContents(),
+			todo.getWeather(),
+			new UserResponse(user.getId(), user.getEmail()),
+			todo.getCreatedAt(),
+			todo.getModifiedAt()
+		);
+	}
 }
