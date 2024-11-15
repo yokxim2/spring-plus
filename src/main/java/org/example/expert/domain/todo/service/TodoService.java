@@ -5,11 +5,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.example.expert.client.WeatherClient;
-import org.example.expert.domain.common.dto.AuthUser;
 import org.example.expert.domain.common.exception.InvalidRequestException;
 import org.example.expert.domain.todo.dto.request.TodoSaveRequest;
+import org.example.expert.domain.todo.dto.request.TodoSearchCondition;
 import org.example.expert.domain.todo.dto.response.TodoResponse;
 import org.example.expert.domain.todo.dto.response.TodoSaveResponse;
+import org.example.expert.domain.todo.dto.response.TodoSimpleResponse;
 import org.example.expert.domain.todo.entity.Todo;
 import org.example.expert.domain.todo.repository.TodoRepository;
 import org.example.expert.domain.user.dto.response.UserResponse;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -119,5 +121,10 @@ public class TodoService {
 			todo.getCreatedAt(),
 			todo.getModifiedAt()
 		);
+	}
+
+	public List<TodoSimpleResponse> searchDetails(int page, int size, @RequestBody TodoSearchCondition condition) {
+		Pageable pageable = PageRequest.of(page - 1, size);
+		return todoRepository.searchDetails(condition, pageable);
 	}
 }
