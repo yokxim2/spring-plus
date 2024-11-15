@@ -35,6 +35,10 @@ public class User extends Timestamped {
         this.userRole = userRole;
     }
 
+    public String getUsername() {
+        return email;
+    }
+
     public static User fromAuthUser(AuthUser authUser) {
         return new User(authUser.getId(), authUser.getEmail(), authUser.getUserRole());
     }
