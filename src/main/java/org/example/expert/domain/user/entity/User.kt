@@ -1,46 +1,53 @@
-package org.example.expert.domain.user.entity
+package org.example.expert.domain.user.entity;
 
-import jakarta.persistence.*
-import org.example.expert.domain.common.entity.Timestamped
-import org.example.expert.domain.user.enums.UserRole
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.example.expert.domain.common.dto.AuthUser;
+import org.example.expert.domain.common.entity.Timestamped;
+import org.example.expert.domain.user.enums.UserRole;
 
+@Getter
 @Entity
+@NoArgsConstructor
 @Table(name = "users")
-class User private constructor(
+public class User extends Timestamped {
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id : Long? = null,
-
-    val email : String,
-
-    var nickname : String,
-
-    var password : String,
-
+    private Long id;
+    @Column(unique = true)
+    private String email;
+    private String nickname;
+    private String password;
     @Enumerated(EnumType.STRING)
-    var userRole : UserRole
+    private UserRole userRole;
 
-): Timestamped() {
-
-    companion object {
-        fun of(email : String, nickname : String, password : String, userRole: UserRole): User {
-            return User(
-                email = email,
-                nickname = nickname,
-                password = password,
-                userRole = userRole
-            )
-        }
+    public User(String email, String password, String nickname, UserRole userRole) {
+        this.email = email;
+        this.password = password;
+        this.nickname = nickname;
+        this.userRole = userRole;
     }
 
-    fun getUsername(): String {
-        return email
+    private User(Long id, String email, UserRole userRole) {
+        this.id = id;
+        this.email = email;
+        this.userRole = userRole;
     }
 
-    fun changePassword(password : String) {
-        this.password = password
+    public String getUsername() {
+        return email;
     }
 
-    fun updateRole(userRole : UserRole) {
-        this.userRole = userRole
+    public static User fromAuthUser(AuthUser authUser) {
+        return new User(authUser.getId(), authUser.getEmail(), authUser.getUserRole());
+    }
+
+    public void changePassword(String password) {
+        this.password = password;
+    }
+
+    public void updateRole(UserRole userRole) {
+        this.userRole = userRole;
     }
 }
